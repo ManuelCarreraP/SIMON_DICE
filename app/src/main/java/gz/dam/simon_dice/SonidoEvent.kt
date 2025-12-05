@@ -1,6 +1,5 @@
 package gz.dam.simon_dice
 
-
 /**
  * Eventos de sonido para la UI
  */
