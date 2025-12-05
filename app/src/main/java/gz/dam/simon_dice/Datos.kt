@@ -1,24 +1,8 @@
 package gz.dam.simon_dice
 
-
-
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
-import gz.dam.simon_dice.GameState
-import gz.dam.simon_dice.ui.theme.SimonBlue
-import gz.dam.simon_dice.ui.theme.SimonGreen
-import gz.dam.simon_dice.ui.theme.SimonRed
-import gz.dam.simon_dice.ui.theme.SimonYellow
-
-// IMPORTACIONES REQUERIDAS DE TU ARCHIVO Color.kt
-import gz.dam.simon_dice.ui.theme.SimonRedDark
-import gz.dam.simon_dice.ui.theme.SimonGreenDark
-import gz.dam.simon_dice.ui.theme.SimonBlueDark
-import gz.dam.simon_dice.ui.theme.SimonYellowDark
-
-
 
 /**
  * Clase que almacena los datos del juego
@@ -105,24 +89,4 @@ enum class Colores(val colorInt: Int, val nombre: String, val tono: String) {
     VERDE(1, "VERDE", "Do"),
     AZUL(2, "AZUL", "Sol"),
     AMARILLO(3, "AMARILLO", "Do'")
-}
-
-// Función de extensión para obtener el color base (color CLARO/BRILLANTE, activo)
-fun Colores.baseColor(): Color {
-    return when (this) {
-        Colores.ROJO -> SimonRed
-        Colores.VERDE -> SimonGreen
-        Colores.AZUL -> SimonBlue
-        Colores.AMARILLO -> SimonYellow
-    }
-}
-
-// Función de extensión para obtener el color oscurecido (color OSCURO/INACTIVO)
-fun Colores.colorOscurecido(): Color {
-    return when (this) {
-        Colores.ROJO -> SimonRedDark
-        Colores.VERDE -> SimonGreenDark
-        Colores.AZUL -> SimonBlueDark
-        Colores.AMARILLO -> SimonYellowDark
-    }
 }
