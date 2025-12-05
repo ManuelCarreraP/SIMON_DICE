@@ -1,15 +1,12 @@
 package gz.dam.simon_dice
 
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import gz.dam.simon_dice.Datos
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
 
 /**
  * ViewModel del juego Simon Dice
@@ -38,6 +35,9 @@ class VM : ViewModel() {
     private val _sonidoEvent = MutableStateFlow<SonidoEvent?>(null)
     val sonidoEvent: StateFlow<SonidoEvent?> = _sonidoEvent.asStateFlow()
 
+    // Para record persistente
+    private var recordViewModel: MiViewModel? = null
+
     // Velocidades para mejor visibilidad
     private val velocidadMostrarColor = 800L
     private val velocidadPausaEntreColores = 400L
@@ -51,6 +51,11 @@ class VM : ViewModel() {
     init {
         // Inicializar el juego usando Datos
         Datos.reiniciarJuego()
+    }
+
+    // Conectar con MiViewModel
+    fun setRecordViewModel(viewModel: MiViewModel) {
+        this.recordViewModel = viewModel
     }
 
     fun generaNumero(): Int = (0..3).random()
@@ -149,17 +154,27 @@ class VM : ViewModel() {
 
         if (secuenciaUsuario[indiceActual] != secuencia[indiceActual]) {
             _sonidoEvent.value = SonidoEvent.Error
+            verificarRecordPersistente()
             gameOver()
             return
         }
 
         if (secuenciaUsuario.size == secuencia.size) {
             _sonidoEvent.value = SonidoEvent.Victory
+            verificarRecordPersistente()
             secuenciaCorrecta()
         } else {
             _gameState.value = GameState.EsperandoJugador
             _text.value = "CONTINÚA... ${secuenciaUsuario.size}/${secuencia.size}"
             _botonesBrillantes.value = true
+        }
+    }
+
+    private fun verificarRecordPersistente() {
+        recordViewModel?.let { mvvm ->
+            if (mvvm.verificarYActualizarRecord(_ronda.value)) {
+                _record.value = _ronda.value  // Actualiza también el record local
+            }
         }
     }
 
