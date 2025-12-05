@@ -134,4 +134,63 @@ main (protegida)
 - **Estado final**: `GameOver` - Muestra claramente "GAME OVER - RONDA 1"
 - **Error detectado**: El jugador falló la secuencia en la primera ronda
 - **Feedback del resultado**: Indica que el juego terminó en la ronda 1
-- **Reinicio disponible**: El botón "START" está visible para comenzar una nueva partida
+- **Reinicio disponible**: El botón "START" está visible para comenzar una nueva partida  
+
+<br><br>  
+## 📝 Documentación de Tests - Simon Dice  
+
+## 🎯 Objetivo de los Tests
+Verificar la funcionalidad crítica del juego sin necesidad de interfaz gráfica o emulador, enfocándose en la lógica de negocio.
+
+## 📊 Estructura de Tests
+
+### **Tests Unitarios Básicos** (`app/src/test/`)
+
+#### **`VMTest.kt`** - ViewModel Principal
+- `testGeneraNumeroEntre0Y3()`: Verifica que los números generados estén entre 0-3
+- `testEstadoInicial()`: Comprueba valores por defecto al iniciar
+- `testSetRecordViewModelNoCrash()`: Valida que no crashea al conectar ViewModels
+
+#### **`GameStateTest.kt`** - Estados del Juego
+- `testTodosLosEstados()`: Verifica que todos los estados existen
+- `testGameOverContieneRonda()`: Confirma que GameOver almacena la ronda
+
+#### **`SonidoEventTest.kt`** - Eventos de Sonido
+- `testTiposSonidoEvent()`: Valida todos los tipos de eventos
+- `testColorSoundContieneColor()`: Verifica que ColorSound tiene el color correcto
+
+#### **`DatosTest.kt`** - Modelo Global
+- `testEstadoInicialDatos()`: Comprueba valores iniciales del singleton
+- `testActualizarDatos()`: Valida funciones de actualización
+- `testReiniciarJuegoFunciona()`: Verifica reset completo a valores iniciales
+
+#### **`ColoresTest.kt`** - Enumeración
+- `testValoresColores()`: Verifica valores constantes de la enumeración
+
+### **Tests de Lógica SIN Android** (Simulados)
+
+#### **`MiViewModelSimpleTest.kt`** - Lógica de Récords
+- `testRecordInicialCero()`: Récord inicial debe ser 0
+- `testActualizarRecordCuandoEsMayor()`: Solo actualiza si es mayor
+- `testNoActualizarRecordCuandoEsMenor()`: No actualiza si es menor
+- `testSoloActualizaRecordMayor()`: Lógica de "solo guardar si es mayor"
+- `testRecordPersistenteEntreInstancias()`: Simula persistencia entre sesiones
+
+#### **`ControladorPreferenceSimpleTest.kt`** - Lógica de Persistencia
+- `testComportamientoRecord()`: Verifica lógica de actualización condicional
+- `testLogicaDePersistencia()`: Valida algoritmo de "mayor récord"
+- `testSecuenciaDeRecords()`: Comprueba comportamiento en secuencia
+
+## 🎪 Estrategia de Testing
+
+### **Tests Aislados** (No dependen de Android)
+- ✅ Se ejecutan en JVM local (sin emulador)
+- ✅ Usan mocks y simulaciones
+- ✅ Más rápidos que tests instrumentados
+- ✅ Enfocados en lógica de negocio
+
+### **Cobertura de Lógica Crítica**
+1. **Generación aleatoria**: Números dentro de rango válido (0-3)
+2. **Estados del juego**: Transiciones y valores correctos
+3. **Persistencia**: Lógica de "solo actualizar si es mayor"
+4. **Valores iniciales**: Configuración por defecto correcta
