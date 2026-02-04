@@ -16,14 +16,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.app.Application
-
 @Composable
 fun SimonDiceUI(
     gameViewModel: VM = viewModel(),
     miViewModel: MiViewModel = viewModel(factory = MiViewModelFactory(LocalContext.current.applicationContext as Application))
 ) {
     val context = LocalContext.current
-    val soundPlayer = remember { SoundPlayer.getInstance(context) }
 
     // Estados del juego
     val gameState by gameViewModel.gameState.collectAsState()
@@ -32,32 +30,13 @@ fun SimonDiceUI(
     val text by gameViewModel.text.collectAsState()
     val colorActivo by gameViewModel.colorActivo.collectAsState()
     val botonesBrillantes by gameViewModel.botonesBrillantes.collectAsState()
-    val sonidoEvent by gameViewModel.sonidoEvent.collectAsState()
 
     // Record persistente
     val recordPersistente by miViewModel.recordTexto.collectAsState()
-    // AÑADIDO: Record persistente para el recuadro
     val recordPersistenteRecuadro by miViewModel.recordParaRecuadro.collectAsState()
 
-    // Efecto para manejar sonidos
-    LaunchedEffect(sonidoEvent) {
-        when (val event = sonidoEvent) {
-            is SonidoEvent.ColorSound -> {
-                soundPlayer.playColorSound(event.colorInt)
-            }
-            is SonidoEvent.Error -> {
-                soundPlayer.playErrorSound()
-            }
-            is SonidoEvent.Victory -> {
-                soundPlayer.playVictorySound()
-            }
-            null -> {
-                // No hacer nada
-            }
-        }
-        // Limpiar el evento después de procesarlo
-        gameViewModel.clearSoundEvent()
-    }
+    // NUEVO: Información de SQLite
+    val dbInfo by miViewModel.dbInfo.collectAsState()
 
     Column(
         modifier = Modifier
@@ -66,27 +45,42 @@ fun SimonDiceUI(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // MODIFICADO: Pasamos recordPersistenteRecuadro
-        HeaderInfo(ronda, recordPersistenteRecuadro, text, gameState, recordPersistente)
+        // MODIFICADO: Pasamos dbInfo también
+        HeaderInfo(ronda, recordPersistenteRecuadro, text, gameState, recordPersistente, dbInfo)
         BotonesColores(gameViewModel, colorActivo, botonesBrillantes, gameState)
         BotonControl(gameViewModel, gameState)
+
+        // NUEVO: Botón para test SQLite
+        Button(
+            onClick = { miViewModel.testSQLiteOperations() },
+            modifier = Modifier
+                .width(200.dp)
+                .height(40.dp)
+        ) {
+            Text(
+                text = "Test SQLite",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
 @Composable
 fun HeaderInfo(
     ronda: Int,
-    record: String,  // CAMBIADO: Ahora es String para aceptar recordPersistenteRecuadro
+    record: String,
     text: String,
     gameState: GameState,
-    recordPersistente: String
+    recordPersistente: String,
+    dbInfo: String // NUEVO parámetro
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = "SIMÓN DICE",
+            text = "SIMÓN DICE (SQLite)",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -99,12 +93,21 @@ fun HeaderInfo(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        // Record persistente - CAMBIADO A COLOR ROJO
+        // NUEVO: Información de la base de datos
+        Text(
+            text = dbInfo,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Normal,
+            color = Color.Gray,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        // Record persistente
         Text(
             text = recordPersistente,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.Red,  // CAMBIADO: De Blue a Red
+            color = Color.Red,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -113,7 +116,6 @@ fun HeaderInfo(
             horizontalArrangement = Arrangement.SpaceAround
         ) {
             InfoBox("RONDA", ronda.toString())
-            // MODIFICADO: Usamos el record persistente en el recuadro
             InfoBox("RÉCORD", record)
             InfoBox("ESTADO", when (gameState) {
                 is GameState.Inicio -> "INICIO"
