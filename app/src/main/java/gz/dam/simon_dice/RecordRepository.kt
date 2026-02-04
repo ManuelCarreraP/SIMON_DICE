@@ -1,7 +1,6 @@
 package gz.dam.simon_dice
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 
 class RecordRepository(private val recordDao: RecordDao) {
 
@@ -14,13 +13,14 @@ class RecordRepository(private val recordDao: RecordDao) {
     }
 
     suspend fun saveRecord(score: Int) {
-        val record = RecordEntity(id = 1, score = score)
+        val timestamp = System.currentTimeMillis()
+        val record = RecordEntity(id = 1, score = score, timestamp = timestamp)
         recordDao.insertRecord(record)
     }
 
-    fun getRecordFlow(): Flow<RecordEntity?> = flow {
-        val record = recordDao.getRecord()
-        emit(record)
+    // CORREGIDO: Usar Flow directamente del DAO
+    fun getRecordFlow(): Flow<RecordEntity?> {
+        return recordDao.getRecordFlow()
     }
 
     suspend fun clearRecord() {

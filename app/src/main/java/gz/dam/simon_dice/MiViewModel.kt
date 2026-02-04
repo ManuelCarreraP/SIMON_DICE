@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -27,6 +28,7 @@ class MiViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         cargarRecordGuardado()
+        observarRecordFlow()
     }
 
     private fun cargarRecordGuardado() {
@@ -49,20 +51,38 @@ class MiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun verificarYActualizarRecord(posibleRecord: Int): Boolean {
-        val recordActual = _record.value
+    private fun observarRecordFlow() {
+        viewModelScope.launch {
+            repository.getRecordFlow().collect { recordEntity ->
+                recordEntity?.let {
+                    _record.value = it.score
+                    _recordParaRecuadro.value = it.score.toString()
+
+                    val date = Date(it.timestamp)
+                    val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(date)
+                    val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
+                    _recordTexto.value = "Récord: ${it.score} ($fecha $hora)"
+                }
+            }
+        }
+    }
+
+    // CORREGIDO: Ahora es suspend y consulta directamente la base de datos
+    suspend fun verificarYActualizarRecord(posibleRecord: Int): Boolean {
+        val recordActual = repository.getRecordScore()
 
         if (posibleRecord > recordActual) {
-            viewModelScope.launch {
-                repository.saveRecord(posibleRecord)
-                _record.value = posibleRecord
-                _recordParaRecuadro.value = posibleRecord.toString()
+            repository.saveRecord(posibleRecord)
 
-                val now = Date()
-                val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(now)
-                val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-                _recordTexto.value = "Récord: $posibleRecord ($fecha $hora)"
-            }
+            // Actualizar StateFlows inmediatamente
+            _record.value = posibleRecord
+            _recordParaRecuadro.value = posibleRecord.toString()
+
+            val now = Date()
+            val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(now)
+            val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+            _recordTexto.value = "Récord: $posibleRecord ($fecha $hora)"
+
             return true
         }
         return false

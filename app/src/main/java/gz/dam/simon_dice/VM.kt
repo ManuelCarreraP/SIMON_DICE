@@ -154,14 +154,18 @@ class VM : ViewModel() {
 
         if (secuenciaUsuario[indiceActual] != secuencia[indiceActual]) {
             _sonidoEvent.value = SonidoEvent.Error
-            verificarRecordPersistente()
+            viewModelScope.launch {
+                verificarRecordPersistente()
+            }
             gameOver()
             return
         }
 
         if (secuenciaUsuario.size == secuencia.size) {
             _sonidoEvent.value = SonidoEvent.Victory
-            verificarRecordPersistente()
+            viewModelScope.launch {
+                verificarRecordPersistente()
+            }
             secuenciaCorrecta()
         } else {
             _gameState.value = GameState.EsperandoJugador
@@ -170,9 +174,11 @@ class VM : ViewModel() {
         }
     }
 
-    private fun verificarRecordPersistente() {
+    // CORREGIDO: Ahora es suspend y se llama dentro de viewModelScope.launch
+    private suspend fun verificarRecordPersistente() {
         recordViewModel?.let { mvvm ->
-            if (mvvm.verificarYActualizarRecord(_ronda.value)) {
+            val esNuevoRecord = mvvm.verificarYActualizarRecord(_ronda.value)
+            if (esNuevoRecord) {
                 _record.value = _ronda.value  // Actualiza también el record local
             }
         }
