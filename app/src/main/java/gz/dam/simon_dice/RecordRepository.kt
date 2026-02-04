@@ -4,26 +4,32 @@ import kotlinx.coroutines.flow.Flow
 
 class RecordRepository(private val recordDao: RecordDao) {
 
-    suspend fun getRecord(): RecordEntity? {
-        return recordDao.getRecord()
+    suspend fun getBestRecord(): RecordEntity? {
+        return recordDao.getBestRecord()
     }
 
-    suspend fun getRecordScore(): Int {
-        return recordDao.getRecordScore() ?: 0
+    suspend fun getBestRecordByPlayer(name: String): RecordEntity? {
+        return recordDao.getBestRecordByPlayer(name)
     }
 
-    suspend fun saveRecord(score: Int) {
-        val timestamp = System.currentTimeMillis()
-        val record = RecordEntity(id = 1, score = score, timestamp = timestamp)
+    suspend fun getMaxScore(): Int {
+        return recordDao.getMaxScore() ?: 0
+    }
+
+    suspend fun saveRecord(score: Int, playerName: String = "Jugador1") {
+        val record = RecordEntity(
+            score = score,
+            playerName = playerName,
+            timestamp = System.currentTimeMillis()
+        )
         recordDao.insertRecord(record)
     }
 
-    // CORREGIDO: Usar Flow directamente del DAO
-    fun getRecordFlow(): Flow<RecordEntity?> {
-        return recordDao.getRecordFlow()
+    fun getAllRecordsFlow(): Flow<List<RecordEntity>> {
+        return recordDao.getAllRecordsFlow()
     }
 
-    suspend fun clearRecord() {
+    suspend fun clearRecords() {
         recordDao.deleteAll()
     }
 }

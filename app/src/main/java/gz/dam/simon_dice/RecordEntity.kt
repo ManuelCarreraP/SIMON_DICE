@@ -5,8 +5,9 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "records")
 data class RecordEntity(
-    @PrimaryKey(autoGenerate = false)
-    val id: Int = 1, // Solo guardaremos un récord, siempre con ID = 1
+    @PrimaryKey(autoGenerate = true)
+    val id: Int = 0,
     val score: Int,
-    val timestamp: Long = System.currentTimeMillis() // Usar System.currentTimeMillis() en lugar de Date()
+    val playerName: String = "Manuel",
+    val timestamp: Long = System.currentTimeMillis()
 )
