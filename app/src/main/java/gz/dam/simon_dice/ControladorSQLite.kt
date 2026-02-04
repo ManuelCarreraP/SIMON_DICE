@@ -7,16 +7,12 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
 import java.util.Date
 
-/**
- * Controlador para manejar la base de datos SQLite.
- * Documentación: https://developer.android.com/training/data-storage/sqlite
- */
 object ControladorSQLite {
-    private const val DATABASE_NAME = "simon_dice.db"
-    private const val DATABASE_VERSION = 1
+    private const val DATABASE_NAME = "simon_dice_top10.db"
+    private const val DATABASE_VERSION = 2
     private const val TABLE_RECORDS = "records"
+    private const val MAX_RECORDS = 10
 
-    // Columnas de la tabla
     private const val KEY_ID = "_id"
     private const val KEY_SCORE = "score"
     private const val KEY_TIMESTAMP = "timestamp"
@@ -34,30 +30,67 @@ object ControladorSQLite {
                     $KEY_PLAYER_NAME TEXT DEFAULT 'Jugador'
                 )
             """.trimIndent()
-
             db.execSQL(createTable)
-            Log.d("SQLite", "Tabla $TABLE_RECORDS creada")
+            Log.d("SQLite_Top10", "Tabla $TABLE_RECORDS creada (TOP 10)")
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_RECORDS")
-            onCreate(db)
-            Log.d("SQLite", "Base de datos actualizada de v$oldVersion a v$newVersion")
+            if (oldVersion < 2) {
+                db.execSQL("DROP TABLE IF EXISTS $TABLE_RECORDS")
+                onCreate(db)
+                Log.d("SQLite_Top10", "Base de datos actualizada a v$newVersion")
+            }
         }
     }
 
-    /**
-     * Insertar o actualizar record (solo si es mayor al actual)
-     */
     fun insertarRecord(context: Context, nuevoScore: Int): Boolean {
         return try {
             val dbHelper = SimonDiceDBHelper(context)
             val db = dbHelper.writableDatabase
 
-            // Verificar si hay record previo
-            val recordActual = obtenerMejorRecordScore(context)
+            val cursorCount = db.rawQuery("SELECT COUNT(*) FROM $TABLE_RECORDS", null)
+            var count = 0
+            if (cursorCount.moveToFirst()) count = cursorCount.getInt(0)
+            cursorCount.close()
 
-            if (nuevoScore > recordActual) {
+            var peorScore = Int.MAX_VALUE
+            var peorTimestamp = Long.MAX_VALUE
+            if (count >= MAX_RECORDS) {
+                val cursorPeor = db.query(
+                    TABLE_RECORDS,
+                    arrayOf(KEY_SCORE, KEY_TIMESTAMP),
+                    null, null, null, null,
+                    "$KEY_SCORE ASC, $KEY_TIMESTAMP DESC", // Peor: menor score, más reciente en empates
+                    "1"
+                )
+                if (cursorPeor.moveToFirst()) {
+                    peorScore = cursorPeor.getInt(cursorPeor.getColumnIndexOrThrow(KEY_SCORE))
+                    peorTimestamp = cursorPeor.getLong(cursorPeor.getColumnIndexOrThrow(KEY_TIMESTAMP))
+                }
+                cursorPeor.close()
+            }
+
+            val entraEnTop10 = count < MAX_RECORDS ||
+                    nuevoScore > peorScore ||
+                    (nuevoScore == peorScore && System.currentTimeMillis() < peorTimestamp)
+
+            if (entraEnTop10) {
+                if (count >= MAX_RECORDS) {
+                    val whereClause = if (nuevoScore > peorScore) {
+                        "$KEY_SCORE = ?"
+                    } else {
+                        "$KEY_SCORE = ? AND $KEY_TIMESTAMP = ?"
+                    }
+
+                    val whereArgs = if (nuevoScore > peorScore) {
+                        arrayOf(peorScore.toString())
+                    } else {
+                        arrayOf(peorScore.toString(), peorTimestamp.toString())
+                    }
+
+                    db.delete(TABLE_RECORDS, whereClause, whereArgs)
+                }
+
                 val values = ContentValues().apply {
                     put(KEY_SCORE, nuevoScore)
                     put(KEY_TIMESTAMP, Date().time)
@@ -65,24 +98,22 @@ object ControladorSQLite {
                 }
 
                 val nuevoId = db.insert(TABLE_RECORDS, null, values)
-                Log.d("SQLite", "Nuevo record insertado: ID=$nuevoId, Score=$nuevoScore")
+
+                android.util.Log.d("SQLite_Game", "¡NUEVO RECORD TOP 10! Score: $nuevoScore")
 
                 db.close()
-                true
+                return true
             } else {
-                Log.d("SQLite", "Score $nuevoScore no supera el record actual $recordActual")
+                Log.d("SQLite_Top10", "Score $nuevoScore no entra en TOP 10")
                 db.close()
-                false
+                return false
             }
         } catch (e: Exception) {
             Log.e("SQLite", "Error al insertar record: ${e.message}")
-            false
+            return false
         }
     }
 
-    /**
-     * Obtener el mejor record (mayor score)
-     */
     fun obtenerMejorRecordScore(context: Context): Int {
         return try {
             val dbHelper = SimonDiceDBHelper(context)
@@ -101,8 +132,6 @@ object ControladorSQLite {
 
             cursor.close()
             db.close()
-
-            Log.d("SQLite", "Mejor record obtenido: $maxScore")
             maxScore
         } catch (e: Exception) {
             Log.e("SQLite", "Error al obtener mejor record: ${e.message}")
@@ -110,10 +139,9 @@ object ControladorSQLite {
         }
     }
 
-    /**
-     * Obtener el mejor record completo con timestamp
-     */
-    fun obtenerMejorRecordCompleto(context: Context): Triple<Int, Long, String> {
+    // NUEVO: Obtener TOP 10 completo
+    fun obtenerTop10Records(context: Context): List<Triple<Int, Long, String>> {
+        val records = mutableListOf<Triple<Int, Long, String>>()
         return try {
             val dbHelper = SimonDiceDBHelper(context)
             val db = dbHelper.readableDatabase
@@ -122,8 +150,39 @@ object ControladorSQLite {
                 TABLE_RECORDS,
                 arrayOf(KEY_SCORE, KEY_TIMESTAMP, KEY_PLAYER_NAME),
                 null, null, null, null,
-                "$KEY_SCORE DESC", // Ordenar por score descendente
-                "1" // Limitar a 1 resultado
+                "$KEY_SCORE DESC, $KEY_TIMESTAMP ASC",
+                MAX_RECORDS.toString()
+            )
+
+            while (cursor.moveToNext()) {
+                val score = cursor.getInt(cursor.getColumnIndexOrThrow(KEY_SCORE))
+                val timestamp = cursor.getLong(cursor.getColumnIndexOrThrow(KEY_TIMESTAMP))
+                val playerName = cursor.getString(cursor.getColumnIndexOrThrow(KEY_PLAYER_NAME))
+                records.add(Triple(score, timestamp, playerName))
+            }
+
+            cursor.close()
+            db.close()
+            records
+        } catch (e: Exception) {
+            Log.e("SQLite_Top10", "Error al obtener TOP 10: ${e.message}")
+            records
+        }
+    }
+
+    // El resto de métodos permanecen igual...
+    fun obtenerMejorRecordCompleto(context: Context): Triple<Int, Long, String> {
+        // Mismo código que antes
+        return try {
+            val dbHelper = SimonDiceDBHelper(context)
+            val db = dbHelper.readableDatabase
+
+            val cursor = db.query(
+                TABLE_RECORDS,
+                arrayOf(KEY_SCORE, KEY_TIMESTAMP, KEY_PLAYER_NAME),
+                null, null, null, null,
+                "$KEY_SCORE DESC",
+                "1"
             )
 
             var score = 0
@@ -138,21 +197,14 @@ object ControladorSQLite {
 
             cursor.close()
             db.close()
-
-            Log.d("SQLite", "Record completo obtenido: $score, $timestamp, $playerName")
             Triple(score, timestamp, playerName)
         } catch (e: Exception) {
-            Log.e("SQLite", "Error al obtener record completo: ${e.message}")
             Triple(0, 0L, "Jugador")
         }
     }
 
-    /**
-     * Obtener todos los records ordenados
-     */
     fun obtenerTodosRecords(context: Context): List<Triple<Int, Long, String>> {
         val records = mutableListOf<Triple<Int, Long, String>>()
-
         return try {
             val dbHelper = SimonDiceDBHelper(context)
             val db = dbHelper.readableDatabase
@@ -161,40 +213,30 @@ object ControladorSQLite {
                 TABLE_RECORDS,
                 arrayOf(KEY_SCORE, KEY_TIMESTAMP, KEY_PLAYER_NAME),
                 null, null, null, null,
-                "$KEY_SCORE DESC" // Ordenar por score descendente
+                "$KEY_SCORE DESC"
             )
 
             while (cursor.moveToNext()) {
                 val score = cursor.getInt(cursor.getColumnIndexOrThrow(KEY_SCORE))
                 val timestamp = cursor.getLong(cursor.getColumnIndexOrThrow(KEY_TIMESTAMP))
                 val playerName = cursor.getString(cursor.getColumnIndexOrThrow(KEY_PLAYER_NAME))
-
                 records.add(Triple(score, timestamp, playerName))
-                Log.d("SQLite", "Record: $score - $playerName")
             }
 
             cursor.close()
             db.close()
-
-            Log.d("SQLite", "Total records obtenidos: ${records.size}")
             records
         } catch (e: Exception) {
-            Log.e("SQLite", "Error al obtener todos los records: ${e.message}")
             records
         }
     }
 
-    /**
-     * Eliminar todos los records (para testing)
-     */
     fun eliminarTodosRecords(context: Context) {
         try {
             val dbHelper = SimonDiceDBHelper(context)
             val db = dbHelper.writableDatabase
-
             db.delete(TABLE_RECORDS, null, null)
             db.close()
-
             Log.d("SQLite", "Todos los records eliminados")
         } catch (e: Exception) {
             Log.e("SQLite", "Error al eliminar records: ${e.message}")

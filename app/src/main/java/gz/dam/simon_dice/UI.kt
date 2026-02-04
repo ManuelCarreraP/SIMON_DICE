@@ -16,12 +16,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.app.Application
+
 @Composable
 fun SimonDiceUI(
     gameViewModel: VM = viewModel(),
     miViewModel: MiViewModel = viewModel(factory = MiViewModelFactory(LocalContext.current.applicationContext as Application))
 ) {
     val context = LocalContext.current
+    val soundPlayer = remember { SoundPlayer.getInstance(context) }
 
     // Estados del juego
     val gameState by gameViewModel.gameState.collectAsState()
@@ -30,13 +32,30 @@ fun SimonDiceUI(
     val text by gameViewModel.text.collectAsState()
     val colorActivo by gameViewModel.colorActivo.collectAsState()
     val botonesBrillantes by gameViewModel.botonesBrillantes.collectAsState()
+    val sonidoEvent by gameViewModel.sonidoEvent.collectAsState()
 
-    // Record persistente
     val recordPersistente by miViewModel.recordTexto.collectAsState()
     val recordPersistenteRecuadro by miViewModel.recordParaRecuadro.collectAsState()
 
-    // NUEVO: Información de SQLite
     val dbInfo by miViewModel.dbInfo.collectAsState()
+
+    LaunchedEffect(sonidoEvent) {
+        when (val event = sonidoEvent) {
+            is SonidoEvent.ColorSound -> {
+                soundPlayer.playColorSound(event.colorInt)
+            }
+            is SonidoEvent.Error -> {
+                soundPlayer.playErrorSound()
+            }
+            is SonidoEvent.Victory -> {
+                soundPlayer.playVictorySound()
+            }
+            null -> {
+                // No hacer nada
+            }
+        }
+        gameViewModel.clearSoundEvent()
+    }
 
     Column(
         modifier = Modifier
@@ -45,29 +64,27 @@ fun SimonDiceUI(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // MODIFICADO: Pasamos dbInfo también
-        HeaderInfo(ronda, recordPersistenteRecuadro, text, gameState, recordPersistente, dbInfo)
+        HeaderInfoSQLite(ronda, recordPersistenteRecuadro, text, gameState, recordPersistente, dbInfo)
         BotonesColores(gameViewModel, colorActivo, botonesBrillantes, gameState)
         BotonControl(gameViewModel, gameState)
-
     }
 }
 
 @Composable
-fun HeaderInfo(
+fun HeaderInfoSQLite(
     ronda: Int,
     record: String,
     text: String,
     gameState: GameState,
     recordPersistente: String,
-    dbInfo: String // NUEVO parámetro
+    dbInfo: String
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = "SIMÓN DICE (SQLite)",
+            text = "SIMÓN DICE (SQLite TOP 10)",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -80,16 +97,14 @@ fun HeaderInfo(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        // NUEVO: Información de la base de datos
         Text(
             text = dbInfo,
             fontSize = 12.sp,
-            fontWeight = FontWeight.Normal,
-            color = Color.Gray,
+            fontWeight = FontWeight.Bold,
+            color = Color.Blue,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        // Record persistente
         Text(
             text = recordPersistente,
             fontSize = 14.sp,
@@ -114,6 +129,14 @@ fun HeaderInfo(
                 is GameState.GameOver -> "GAME OVER"
             })
         }
+
+        Text(
+            text = "Sistema: Solo se guardan los 10 mejores scores",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Normal,
+            color = Color.Gray,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
 
@@ -250,5 +273,3 @@ fun BotonControl(viewModel: VM, gameState: GameState) {
         )
     }
 }
-
-
