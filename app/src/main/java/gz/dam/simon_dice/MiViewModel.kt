@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -17,6 +16,8 @@ class MiViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val repository = RecordRepository(database.recordDao())
 
+    private var currentPlayerName = "Manuel"
+
     private val _record = MutableStateFlow(0)
     val record: StateFlow<Int> = _record.asStateFlow()
 
@@ -25,76 +26,89 @@ class MiViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _recordParaRecuadro = MutableStateFlow("0")
     val recordParaRecuadro: StateFlow<String> = _recordParaRecuadro.asStateFlow()
+    private val _playerInfo = MutableStateFlow("Jugador: $currentPlayerName")
+    val playerInfo: StateFlow<String> = _playerInfo.asStateFlow()
 
     init {
         cargarRecordGuardado()
-        observarRecordFlow()
+        observarTodosRecords()
     }
 
     private fun cargarRecordGuardado() {
         viewModelScope.launch {
-            val recordEntity = repository.getRecord()
+            val bestRecord = repository.getBestRecord()
 
-            if (recordEntity != null) {
-                _record.value = recordEntity.score
-                _recordParaRecuadro.value = recordEntity.score.toString()
+            if (bestRecord != null) {
+                _record.value = bestRecord.score
+                _recordParaRecuadro.value = bestRecord.score.toString()
 
-                val date = Date(recordEntity.timestamp)
+                val date = Date(bestRecord.timestamp)
                 val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(date)
                 val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
-                _recordTexto.value = "Récord: ${recordEntity.score} ($fecha $hora)"
+                _recordTexto.value = "${bestRecord.playerName}: ${bestRecord.score} ($fecha $hora)"
+                _playerInfo.value = "Jugando como: $currentPlayerName | Mejor: ${bestRecord.playerName}"
             } else {
                 _record.value = 0
                 _recordParaRecuadro.value = "0"
                 _recordTexto.value = "Sin récord"
+                _playerInfo.value = "Jugando como: $currentPlayerName"
             }
         }
     }
 
-    private fun observarRecordFlow() {
+    private fun observarTodosRecords() {
         viewModelScope.launch {
-            repository.getRecordFlow().collect { recordEntity ->
-                recordEntity?.let {
-                    _record.value = it.score
-                    _recordParaRecuadro.value = it.score.toString()
+            repository.getAllRecordsFlow().collect { records ->
+                if (records.isNotEmpty()) {
+                    val bestRecord = records.maxByOrNull { it.score }
+                    bestRecord?.let {
+                        _record.value = it.score
+                        _recordParaRecuadro.value = it.score.toString()
 
-                    val date = Date(it.timestamp)
-                    val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(date)
-                    val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
-                    _recordTexto.value = "Récord: ${it.score} ($fecha $hora)"
+                        val date = Date(it.timestamp)
+                        val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(date)
+                        val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
+                        _recordTexto.value = "${it.playerName}: ${it.score} ($fecha $hora)"
+                        _playerInfo.value = "Jugando como: $currentPlayerName | Mejor: ${it.playerName}"
+
+                        android.util.Log.d("Room_Player", "Mejor record actual: ${it.playerName}: ${it.score}")
+                    }
                 }
             }
         }
     }
 
-    // CORREGIDO: Ahora es suspend y consulta directamente la base de datos
     suspend fun verificarYActualizarRecord(posibleRecord: Int): Boolean {
-        val recordActual = repository.getRecordScore()
+        val currentMaxScore = repository.getMaxScore()
 
-        if (posibleRecord > recordActual) {
-            repository.saveRecord(posibleRecord)
+        if (posibleRecord > currentMaxScore) {
+            repository.saveRecord(posibleRecord, currentPlayerName)
 
-            // Actualizar StateFlows inmediatamente
             _record.value = posibleRecord
             _recordParaRecuadro.value = posibleRecord.toString()
 
             val now = Date()
             val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(now)
             val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-            _recordTexto.value = "Récord: $posibleRecord ($fecha $hora)"
+            // Mostrar nombre del jugador junto al nuevo record
+            _recordTexto.value = "$currentPlayerName: $posibleRecord ($fecha $hora)"
+            _playerInfo.value = "¡Nuevo récord! $currentPlayerName: $posibleRecord"
+
+            android.util.Log.d("Room_Player", "Nuevo record de $currentPlayerName: $posibleRecord")
 
             return true
         }
         return false
     }
 
-    // Método para limpiar el récord (opcional)
-    fun clearRecord() {
+
+    fun clearRecords() {
         viewModelScope.launch {
-            repository.clearRecord()
+            repository.clearRecords()
             _record.value = 0
             _recordParaRecuadro.value = "0"
             _recordTexto.value = "Sin récord"
+            _playerInfo.value = "Jugando como: $currentPlayerName (sin records)"
         }
     }
 }
